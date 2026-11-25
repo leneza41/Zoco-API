@@ -24,3 +24,30 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
+
+
+class UserProfile(models.Model):
+    name = models.CharField(
+        max_length=255,
+        default="Comunidad Zoco",
+        verbose_name="Nombre de Usuario"
+    )
+    role = models.CharField(
+        max_length=255,
+        default="Consumidor y Productor Local",
+        verbose_name="Rol / Ocupación"
+    )
+    photo_url = models.CharField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        verbose_name="Foto de Perfil"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Perfil de Usuario'
+        verbose_name_plural = 'Perfiles de Usuario'
+
+    def __str__(self):
+        return self.name

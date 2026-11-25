@@ -30,6 +30,7 @@ def api_root_view(request):
             "media": f"{base_uri}/api/v1/media",
             "notifications": f"{base_uri}/api/v1/notifications",
             "users": f"{base_uri}/api/v1/users",
+            "profile": f"{base_uri}/api/v1/profile",
             "auth": {
                 "register": f"{base_uri}/api/v1/auth/register/",
                 "login": f"{base_uri}/api/v1/auth/login/",

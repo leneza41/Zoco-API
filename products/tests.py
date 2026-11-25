@@ -108,3 +108,44 @@ class ProductAPITests(TestCase):
         response = self.client.delete(f'/api/v1/products/{self.product1.id}')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Product.objects.filter(id=self.product1.id).exists())
+
+    def test_product_stock_and_image_url(self):
+        payload = {
+            "name": "Pan de Campo Artesanal",
+            "description": "Pan rústico de masa madre",
+            "price": 45.0,
+            "category": "BAKERY",
+            "producerName": "Panadería Tradicional",
+            "isExpressDelivery": True,
+            "stock": 15,
+            "imageUrl": "file:///data/user/0/com.example.zoco/cache/pan.jpg"
+        }
+        response = self.client.post('/api/v1/products', data=payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['stock'], 15)
+        self.assertEqual(response.data['inStock'], True)
+        self.assertEqual(response.data['imageUrl'], "file:///data/user/0/com.example.zoco/cache/pan.jpg")
+
+    def test_product_stock_zero_sets_in_stock_false(self):
+        payload = {
+            "name": "Producto Agotado",
+            "price": 20.0,
+            "producerName": "Productor Local",
+            "stock": 0,
+            "inStock": True
+        }
+        response = self.client.post('/api/v1/products', data=payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['stock'], 0)
+        self.assertEqual(response.data['inStock'], False)
+
+    def test_product_negative_stock_rejected(self):
+        payload = {
+            "name": "Producto Inválido",
+            "price": 20.0,
+            "producerName": "Productor Local",
+            "stock": -5
+        }
+        response = self.client.post('/api/v1/products', data=payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('stock', response.data)

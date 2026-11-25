@@ -1,6 +1,20 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User
+from .models import User, UserProfile
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    photoUrl = serializers.CharField(source='photo_url', required=False, allow_null=True, allow_blank=True)
+
+    class Meta:
+        model = UserProfile
+        fields = ['id', 'name', 'role', 'photoUrl']
+
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        if 'photo_url' in data and 'photoUrl' not in data:
+            data['photoUrl'] = data['photo_url']
+        return super().to_internal_value(data)
 
 
 class UserSerializer(serializers.ModelSerializer):

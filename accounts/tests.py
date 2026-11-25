@@ -37,3 +37,30 @@ class AccountsAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('token', response.data)
         self.assertEqual(response.data['user']['username'], "usuario_login")
+
+    def test_get_default_user_profile(self):
+        response = self.client.get('/api/v1/profile')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['id'], 1)
+        self.assertEqual(response.data['name'], "Comunidad Zoco")
+        self.assertEqual(response.data['role'], "Consumidor y Productor Local")
+        self.assertIsNone(response.data['photoUrl'])
+
+    def test_update_user_profile_with_local_uri(self):
+        payload = {
+            "name": "Roberto Gordillo",
+            "role": "Consumidor y Productor Local",
+            "photoUrl": "file:///data/user/0/com.example.zoco/cache/profile_avatar.jpg"
+        }
+        response = self.client.put('/api/v1/profile', data=payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['id'], 1)
+        self.assertEqual(response.data['name'], "Roberto Gordillo")
+        self.assertEqual(
+            response.data['photoUrl'],
+            "file:///data/user/0/com.example.zoco/cache/profile_avatar.jpg"
+        )
+
+        get_response = self.client.get('/api/v1/profile/')
+        self.assertEqual(get_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(get_response.data['name'], "Roberto Gordillo")
