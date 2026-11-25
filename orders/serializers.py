@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 from decimal import Decimal
 from .models import Order, OrderItem, OrderStatus
@@ -78,41 +79,78 @@ class OrderSerializer(serializers.ModelSerializer):
             if not validated_data.get('delivery_address') and hasattr(request.user, 'address'):
                 validated_data['delivery_address'] = request.user.address
 
-        order = Order.objects.create(**validated_data)
+        with transaction.atomic():
+            # 1. Validar stock disponible para todos los productos del pedido
+            requested_quantities = {}
+            for item_data in items_data:
+                product = item_data.get('product')
+                quantity = item_data.get('quantity', 1)
+                if product is not None:
+                    requested_quantities[product.id] = requested_quantities.get(product.id, 0) + quantity
 
-        calculated_total = Decimal('0.00')
-        for item_data in items_data:
-            product = item_data.get('product')
-            quantity = item_data.get('quantity', 1)
-            unit_price = item_data.get('unit_price')
+            locked_products = {}
+            if requested_quantities:
+                products_qs = Product.objects.select_for_update().filter(id__in=requested_quantities.keys())
+                locked_products = {p.id: p for p in products_qs}
 
-            if unit_price is None and product:
-                unit_price = product.price
-            elif unit_price is not None:
-                unit_price = Decimal(str(unit_price))
-            else:
-                unit_price = Decimal('0.00')
+                stock_errors = []
+                for product_id, total_qty in requested_quantities.items():
+                    product = locked_products.get(product_id)
+                    if product is None:
+                        stock_errors.append(f"El producto con ID {product_id} no existe.")
+                    elif product.stock < total_qty:
+                        stock_errors.append(
+                            f"Stock insuficiente para '{product.name}'. "
+                            f"Disponible: {product.stock}, solicitado: {total_qty}."
+                        )
 
-            product_name = item_data.get('product_name')
-            if not product_name and product:
-                product_name = product.name
-            elif not product_name:
-                product_name = "Producto sin especificar"
+                if stock_errors:
+                    raise serializers.ValidationError({"items": stock_errors})
 
-            subtotal = unit_price * quantity
-            calculated_total += subtotal
+            # 2. Crear el pedido y sus items
+            order = Order.objects.create(**validated_data)
 
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name=product_name,
-                quantity=quantity,
-                unit_price=unit_price,
-                subtotal=subtotal
-            )
+            calculated_total = Decimal('0.00')
+            for item_data in items_data:
+                product = item_data.get('product')
+                if product is not None and product.id in locked_products:
+                    product = locked_products[product.id]
+                quantity = item_data.get('quantity', 1)
+                unit_price = item_data.get('unit_price')
 
-        if not validated_data.get('total_amount') or order.total_amount == 0:
-            order.total_amount = calculated_total
-            order.save(update_fields=['total_amount'])
+                if unit_price is None and product:
+                    unit_price = product.price
+                elif unit_price is not None:
+                    unit_price = Decimal(str(unit_price))
+                else:
+                    unit_price = Decimal('0.00')
+
+                product_name = item_data.get('product_name')
+                if not product_name and product:
+                    product_name = product.name
+                elif not product_name:
+                    product_name = "Producto sin especificar"
+
+                subtotal = unit_price * quantity
+                calculated_total += subtotal
+
+                OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    product_name=product_name,
+                    quantity=quantity,
+                    unit_price=unit_price,
+                    subtotal=subtotal
+                )
+
+            # 3. Deducir stock y sincronizar disponibilidad (in_stock)
+            for product_id, total_qty in requested_quantities.items():
+                product = locked_products[product_id]
+                product.stock -= total_qty
+                product.save(update_fields=['stock', 'in_stock', 'updated_at'])
+
+            if not validated_data.get('total_amount') or order.total_amount == 0:
+                order.total_amount = calculated_total
+                order.save(update_fields=['total_amount'])
 
         return order

@@ -2,8 +2,8 @@ from rest_framework import generics, status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
-from .models import User
-from .serializers import UserSerializer, RegisterSerializer, LoginSerializer
+from .models import User, UserProfile
+from .serializers import UserSerializer, UserProfileSerializer, RegisterSerializer, LoginSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -63,3 +63,23 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
+
+
+class UserProfileView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        profile, _ = UserProfile.objects.get_or_create(id=1)
+        serializer = UserProfileSerializer(profile)
+        return Response(serializer.data)
+
+    def put(self, request):
+        profile, _ = UserProfile.objects.get_or_create(id=1)
+        serializer = UserProfileSerializer(profile, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request):
+        return self.put(request)

@@ -59,3 +59,44 @@ class OrderAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         order.refresh_from_db()
         self.assertEqual(order.status, OrderStatus.CONFIRMED)
+
+    def test_create_order_deducts_stock_and_updates_in_stock(self):
+        self.product.stock = 3
+        self.product.save()
+
+        # Comprar 2 unidades -> debe quedar 1 y seguir en stock
+        payload = {
+            "customerName": "Ana",
+            "items": [{"productId": self.product.id, "quantity": 2}]
+        }
+        response = self.client.post('/api/v1/orders', data=payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 1)
+        self.assertTrue(self.product.in_stock)
+
+        # Comprar la última unidad -> debe quedar 0 e in_stock = False
+        payload_last = {
+            "customerName": "Ana",
+            "items": [{"productId": self.product.id, "quantity": 1}]
+        }
+        response_last = self.client.post('/api/v1/orders', data=payload_last, format='json')
+        self.assertEqual(response_last.status_code, status.HTTP_201_CREATED)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 0)
+        self.assertFalse(self.product.in_stock)
+
+    def test_create_order_insufficient_stock_rejected(self):
+        self.product.stock = 2
+        self.product.save()
+
+        payload = {
+            "customerName": "Carlos",
+            "items": [{"productId": self.product.id, "quantity": 5}]
+        }
+        response = self.client.post('/api/v1/orders', data=payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('items', response.data)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 2)
+        self.assertEqual(Order.objects.count(), 0)
