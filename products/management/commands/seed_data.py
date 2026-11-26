@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from accounts.models import User
 from products.models import Product, ProductCategory
@@ -6,9 +9,12 @@ from multimedia.models import Media, MediaType
 from notifications.models import Notification, NotificationType
 from rest_framework.authtoken.models import Token
 
+# Fotos de ejemplo (créditos en docs/CREDITOS_FOTOS.md de la app)
+SEED_PHOTOS_DIR = Path(__file__).resolve().parent / 'seed_photos'
+
 
 class Command(BaseCommand):
-    help = 'Pobla la base de datos con datos de prueba de Zoco Web API diferenciados como En Línea'
+    help = 'Pobla la base de datos con productos (con foto), pedidos y usuarios de ejemplo'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -18,7 +24,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.NOTICE('Inicializando catálogo y pedidos Web API (En Línea, sin emojis)...'))
+        self.stdout.write(self.style.NOTICE('Cargando catálogo, pedidos y fotos de ejemplo...'))
 
         # Limpiar pedidos, productos, notificaciones y multimedia para no duplicar
         Order.objects.all().delete()
@@ -100,92 +106,102 @@ class Command(BaseCommand):
         # 4. Catálogo de Productos ONLINE (Sin emojis)
         sample_products = [
             {
-                'name': '[En Línea] Pan Rústico de Masa Madre',
-                'description': 'Fermentación lenta de 24 horas y corteza dorada. Sincronizado en tiempo real desde la Web API.',
+                'photo': 'sample_pan.jpg',
+                'name': 'Pan Rústico de Masa Madre',
+                'description': 'Fermentación lenta de 24 horas y corteza dorada.',
                 'price': 45.00,
                 'category': ProductCategory.BAKERY,
-                'producer_name': 'Panadería Don Juan [Web API]',
+                'producer_name': 'Panadería Don Juan',
                 'is_express_delivery': True,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Conchas Artesanales de Vainilla',
+                'photo': 'sample_conchas.jpg',
+                'name': 'Conchas Artesanales de Vainilla',
                 'description': 'Paquete con 4 conchas esponjosas elaboradas con mantequilla de rancho y vainilla natural.',
                 'price': 38.00,
                 'category': ProductCategory.BAKERY,
-                'producer_name': 'Panadería Don Juan [Web API]',
+                'producer_name': 'Panadería Don Juan',
                 'is_express_delivery': True,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Café Gourmet de Altura (500g)',
+                'photo': 'sample_cafe.jpg',
+                'name': 'Café Gourmet de Altura (500g)',
                 'description': 'Grano arábica tostado medio cultivado a más de 1,200 msnm. Empacado con válvula desgasificadora.',
                 'price': 135.00,
                 'category': ProductCategory.PRODUCE,
-                'producer_name': 'Cooperativa Café Sierra [Web API]',
+                'producer_name': 'Cooperativa Café Sierra',
                 'is_express_delivery': True,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Manzanas Criollas Orgánicas (1 kg)',
+                'photo': 'sample_manzanas.jpg',
+                'name': 'Manzanas Criollas Orgánicas (1 kg)',
                 'description': 'Manzanas frescas cosechadas en huerto familiar de montaña, libres de pesticidas químicos.',
                 'price': 32.50,
                 'category': ProductCategory.PRODUCE,
-                'producer_name': 'Huerto Los Laureles [Web API]',
+                'producer_name': 'Huerto Los Laureles',
                 'is_express_delivery': False,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Jitomate Saladette de Campo (1 kg)',
+                'photo': 'sample_jitomate.jpg',
+                'name': 'Jitomate Saladette de Campo (1 kg)',
                 'description': 'Madurado en planta al sol con riego de pozo profundo. Textura firme y alto rendimiento.',
                 'price': 24.00,
                 'category': ProductCategory.PRODUCE,
-                'producer_name': 'Hortalizas Don Chente [Web API]',
+                'producer_name': 'Hortalizas Don Chente',
                 'is_express_delivery': True,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Queso Oaxaca Artesanal de Rancho (500g)',
+                'photo': 'sample_queso.jpg',
+                'name': 'Queso Oaxaca Artesanal de Rancho (500g)',
                 'description': 'Queso fresco de hebra 100% leche bronca entera, con el tradicional punto de sal y fundido perfecto.',
                 'price': 75.00,
                 'category': ProductCategory.DAIRY,
-                'producer_name': 'Lácteos del Valle [Web API]',
+                'producer_name': 'Lácteos del Valle',
                 'is_express_delivery': True,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Yogurt Natural de Búfala / Vaca (1 L)',
+                'photo': 'sample_yogurt.jpg',
+                'name': 'Yogurt Natural de Búfala / Vaca (1 L)',
                 'description': 'Cremoso, espeso y sin conservadores ni azúcares añadidos.',
                 'price': 55.00,
                 'category': ProductCategory.DAIRY,
-                'producer_name': 'Lácteos del Valle [Web API]',
+                'producer_name': 'Lácteos del Valle',
                 'is_express_delivery': False,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Cesta de Mimbre Tejida a Mano',
+                'photo': 'sample_canasta.jpg',
+                'name': 'Cesta de Mimbre Tejida a Mano',
                 'description': 'Fibras naturales tratadas a mano por maestros artesanos locales para compras sustentables.',
                 'price': 120.00,
                 'category': ProductCategory.CRAFTS,
-                'producer_name': 'Artesanías Don Chuy [Web API]',
+                'producer_name': 'Artesanías Don Chuy',
                 'is_express_delivery': False,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Taza de Barro Bruñido Esmaltado',
+                'photo': 'sample_taza.jpg',
+                'name': 'Taza de Barro Bruñido Esmaltado',
                 'description': 'Taza artesanal libre de plomo para bebidas calientes con sello térmico tradicional.',
                 'price': 60.00,
                 'category': ProductCategory.CRAFTS,
-                'producer_name': 'Alfarería La Esperanza [Web API]',
+                'producer_name': 'Alfarería La Esperanza',
                 'is_express_delivery': True,
                 'in_stock': True,
             },
             {
-                'name': '[En Línea] Chocolate de Mesa Tradicional (400g)',
+                'photo': 'sample_chocolate.jpg',
+                'name': 'Chocolate de Mesa Tradicional (400g)',
                 'description': 'Tablillas artesanales con cacao criollo tostado en comal de barro y canela de Ceilán.',
                 'price': 85.00,
                 'category': ProductCategory.BAKERY,
-                'producer_name': 'Chocolatería Oaxaca [Web API]',
+                'producer_name': 'Chocolatería Oaxaca',
                 'is_express_delivery': True,
                 'in_stock': True,
             },
@@ -194,29 +210,32 @@ class Command(BaseCommand):
         created_products = []
         for idx, pdata in enumerate(sample_products):
             owner = seller_user if idx < 6 else maria_user
+            photo = pdata.pop('photo')
             prod = Product.objects.create(**pdata, seller=owner)
+            with open(SEED_PHOTOS_DIR / photo, 'rb') as f:
+                prod.image.save(photo, ContentFile(f.read()), save=True)
             created_products.append(prod)
 
-        self.stdout.write(self.style.SUCCESS(f'{len(created_products)} productos EN LÍNEA creados en catálogo.'))
+        self.stdout.write(self.style.SUCCESS(f'{len(created_products)} productos creados en el catálogo.'))
 
         # 5. Pedidos Web API (Sin emojis, identificados como [En Línea])
         orders_data = [
             {
-                'customer_name': '[En Línea] Laura Gómez (Web API)',
+                'customer_name': 'Laura Gómez',
                 'customer_phone': '4459876543',
                 'delivery_address': 'Av. Juárez #120, Col. San Miguel',
                 'scheduled_time': 'Hoy, 16:30 hrs',
                 'total_amount': 158.00,
                 'status': OrderStatus.CONFIRMED,
                 'is_express': True,
-                'notes': 'Pedido en línea verificado por el servidor Django REST.',
+                'notes': 'Pedido confirmado por el vendedor.',
                 'items': [
                     {'product': created_products[0], 'qty': 2, 'price': 45.00},
                     {'product': created_products[5], 'qty': 1, 'price': 68.00},
                 ]
             },
             {
-                'customer_name': '[En Línea] Carlos Méndez (Web API)',
+                'customer_name': 'Carlos Méndez',
                 'customer_phone': '4451122334',
                 'delivery_address': 'Calle Zaragoza #45, Zona Centro',
                 'scheduled_time': 'Hoy, 18:00 hrs',
@@ -230,7 +249,7 @@ class Command(BaseCommand):
                 ]
             },
             {
-                'customer_name': '[En Línea] Roberto Gordillo (Web API)',
+                'customer_name': 'Roberto Gordillo',
                 'customer_phone': '4453344556',
                 'delivery_address': 'Prolongación Hidalgo #300, Col. Campestre',
                 'scheduled_time': 'Mañana, 10:00 hrs',
@@ -244,7 +263,7 @@ class Command(BaseCommand):
                 ]
             },
             {
-                'customer_name': '[En Línea] Ricardo Pérez (Web API)',
+                'customer_name': 'Ricardo Pérez',
                 'customer_phone': '4457788990',
                 'delivery_address': 'Calzada del Tepeyac #88, Col. Bellavista',
                 'scheduled_time': 'Mañana, 12:30 hrs',
@@ -258,14 +277,14 @@ class Command(BaseCommand):
                 ]
             },
             {
-                'customer_name': '[En Línea] Leonardo Nuñez (Web API)',
+                'customer_name': 'Leonardo Nuñez',
                 'customer_phone': '4455566778',
                 'delivery_address': 'Fraccionamiento Las Palmas #12',
                 'scheduled_time': 'Hoy, 19:15 hrs',
                 'total_amount': 130.00,
                 'status': OrderStatus.PENDING,
                 'is_express': True,
-                'notes': 'Pedido recién registrado esperando asignación.',
+                'notes': 'Pedido recién recibido.',
                 'items': [
                     {'product': created_products[5], 'qty': 1, 'price': 75.00},
                     {'product': created_products[6], 'qty': 1, 'price': 55.00},
@@ -286,36 +305,22 @@ class Command(BaseCommand):
                     subtotal=item['price'] * item['qty']
                 )
 
-        self.stdout.write(self.style.SUCCESS(f'{len(orders_data)} pedidos EN LÍNEA creados con éxito.'))
+        self.stdout.write(self.style.SUCCESS(f'{len(orders_data)} pedidos de ejemplo creados.'))
 
         # 6. Notificaciones Web API (Sin emojis)
         Notification.objects.create(
             user=buyer_user,
-            title='[Web API] Catálogo Sincronizado',
-            message='El catálogo en la nube se ha actualizado con 10 productos locales verificados.',
+            title='Catálogo Sincronizado',
+            message='El catálogo se actualizó con productos de tu comunidad.',
             type=NotificationType.INFO,
             is_read=False
         )
         Notification.objects.create(
             user=buyer_user,
-            title='[Web API] Pedido Confirmado #1',
-            message='Tu pedido #1 ha sido validado en el servidor central de Zoco.',
+            title='Pedido Confirmado #1',
+            message='Tu pedido #1 fue confirmado.',
             type=NotificationType.ORDER_STATUS,
             is_read=False
         )
 
-        # 7. Multimedia
-        Media.objects.create(
-            product=created_products[0],
-            media_type=MediaType.IMAGE,
-            media_uri='https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800',
-            description='Foto del pan rústico en la nube'
-        )
-        Media.objects.create(
-            product=created_products[5],
-            media_type=MediaType.IMAGE,
-            media_uri='https://images.unsplash.com/photo-1559561853-08451507cbe7?w=800',
-            description='Foto del queso oaxaca en la nube'
-        )
-
-        self.stdout.write(self.style.SUCCESS('--- Base de datos Web API poblada con distinción [En Línea] (sin emojis) ---'))
+        self.stdout.write(self.style.SUCCESS('--- Datos de ejemplo cargados ---'))
