@@ -223,11 +223,40 @@ Ruta base recomendada: `/api/v1/` (o directamente `/api/`).
 
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/register/` | Registro de nuevo usuario (comprador o vendedor) con retorno de Token. |
-| `POST` | `/api/v1/auth/login/` | Iniciar sesión con `username` y `password`, retorna Token y datos de usuario. |
+| `POST` | `/api/v1/auth/register/` | Registro público. **Siempre crea un comprador** (pedir otro rol responde 400). Devuelve Token. |
+| `POST` | `/api/v1/auth/login/` | Iniciar sesión con `username` y `password`. Devuelve Token, datos y rol. No crea cuentas. |
 | `POST` | `/api/v1/auth/logout/` | Invalidar token de sesión actual. |
-| `GET` | `/api/v1/auth/profile/` | Consultar perfil del usuario autenticado. |
-| `PUT` / `PATCH` | `/api/v1/auth/profile/` | Actualizar datos del perfil (teléfono, dirección, idioma). |
+| `GET` | `/api/v1/auth/me/` | Consultar la cuenta del usuario autenticado. |
+| `PUT` / `PATCH` | `/api/v1/auth/me/` | Actualizar teléfono, dirección, idioma (el rol no se puede cambiar aquí). |
+| `POST` | `/api/v1/auth/me/avatar/` | Subir foto de perfil (`multipart/form-data`, campo `image`, máx. 5 MB). |
+| `POST` | `/api/v1/auth/become-seller/` | Un comprador pasa a vendedor (`{"producerName": "..."}` opcional). Admin → 403. |
+| `GET` / `PATCH` | `/api/v1/users/`, `/api/v1/users/{id}/` | Solo admin: listar y editar usuarios. |
+| `POST` | `/api/v1/users/{id}/role/` | Solo admin: cambiar el rol de un usuario. |
+
+### 🔐 Roles y permisos (resumen)
+
+| Recurso | Sin sesión | Comprador | Vendedor | Admin |
+| :--- | :---: | :---: | :---: | :---: |
+| Ver productos | ✅ | ✅ | ✅ | ✅ |
+| Crear producto / subir su foto | ❌ | ❌ | ✅ (solo los suyos) | ✅ |
+| Editar o borrar producto | ❌ | ❌ | solo los suyos | ✅ |
+| Pedidos | ❌ | crea y ve los suyos; solo cancela | ve los que incluyen sus productos y cambia su estado | todos |
+| Notificaciones | ❌ | solo las suyas | solo las suyas | todas |
+| Usuarios y roles | ❌ | ❌ | ❌ | ✅ |
+
+Las reglas están todas en `accounts/permissions.py`.
+
+### 👑 Cómo se crea un administrador
+Los administradores **no se registran**. Se crean desde la consola del servidor:
+```bash
+python manage.py createsuperuser
+```
+Ese usuario queda automáticamente con rol `ADMIN`. Un administrador puede cambiar el rol de otros desde la app.
+
+### 🖼️ Fotos
+- Producto: `POST /api/v1/products/{id}/image` (`multipart/form-data`, campo `image`).
+- Perfil: `POST /api/v1/auth/me/avatar/`.
+- Solo se aceptan imágenes reales de hasta 5 MB. Las respuestas traen la URL completa de la foto (`imageUrl` / `avatar`).
 
 Para peticiones autenticadas, enviar el header HTTP:
 ```http

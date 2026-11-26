@@ -1,23 +1,22 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
+from zoco_api.serializers_mixins import SnakeCaseAliasMixin
 from .models import User, UserProfile
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserProfileSerializer(SnakeCaseAliasMixin, serializers.ModelSerializer):
+    snake_case_aliases = {'photo_url': 'photoUrl'}
+
     photoUrl = serializers.CharField(source='photo_url', required=False, allow_null=True, allow_blank=True)
 
     class Meta:
         model = UserProfile
         fields = ['id', 'name', 'role', 'photoUrl']
 
-    def to_internal_value(self, data):
-        data = data.copy() if hasattr(data, 'copy') else dict(data)
-        if 'photo_url' in data and 'photoUrl' not in data:
-            data['photoUrl'] = data['photo_url']
-        return super().to_internal_value(data)
 
+class UserSerializer(SnakeCaseAliasMixin, serializers.ModelSerializer):
+    snake_case_aliases = {'preferred_language': 'preferredLanguage'}
 
-class UserSerializer(serializers.ModelSerializer):
     preferredLanguage = serializers.CharField(source='preferred_language', required=False)
 
     class Meta:
@@ -28,12 +27,6 @@ class UserSerializer(serializers.ModelSerializer):
             'avatar', 'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'role', 'is_active', 'created_at', 'updated_at']
-
-    def to_internal_value(self, data):
-        data = data.copy() if hasattr(data, 'copy') else dict(data)
-        if 'preferred_language' in data and 'preferredLanguage' not in data:
-            data['preferredLanguage'] = data['preferred_language']
-        return super().to_internal_value(data)
 
 
 class AdminUserSerializer(UserSerializer):
@@ -60,12 +53,15 @@ class RegisterSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
     def validate_role(self, value):
-        if value not in ('BUYER', 'SELLER'):
-            raise serializers.ValidationError("El registro público solo permite los roles 'BUYER' o 'SELLER'.")
+        # El registro público solo crea compradores. Quien quiera vender usa /auth/become-seller;
+        # los administradores los crea otro administrador o se hacen con createsuperuser.
+        if value != 'BUYER':
+            raise serializers.ValidationError("El registro público solo crea cuentas de comprador.")
         return value
 
     def create(self, validated_data):
         password = validated_data.pop('password')
+        validated_data['role'] = 'BUYER'
         user = User(**validated_data)
         user.set_password(password)
         user.save()

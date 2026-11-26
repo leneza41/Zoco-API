@@ -1,9 +1,17 @@
 from rest_framework import serializers
 from .models import Media, MediaType
 from products.models import Product
+from zoco_api.serializers_mixins import SnakeCaseAliasMixin
 
 
-class MediaSerializer(serializers.ModelSerializer):
+class MediaSerializer(SnakeCaseAliasMixin, serializers.ModelSerializer):
+    snake_case_aliases = {
+        'product_id': 'productId',
+        'media_type': 'mediaType',
+        'media_uri': 'mediaUri',
+        'uri': 'mediaUri',
+    }
+
     productId = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),
         source='product',
@@ -28,14 +36,3 @@ class MediaSerializer(serializers.ModelSerializer):
             return obj.file.url
         return obj.media_uri or ""
 
-    def to_internal_value(self, data):
-        data = data.copy() if hasattr(data, 'copy') else dict(data)
-        if 'product_id' in data and 'productId' not in data:
-            data['productId'] = data['product_id']
-        if 'media_type' in data and 'mediaType' not in data:
-            data['mediaType'] = data['media_type']
-        if 'media_uri' in data and 'mediaUri' not in data:
-            data['mediaUri'] = data['media_uri']
-        if 'uri' in data and 'mediaUri' not in data:
-            data['mediaUri'] = data['uri']
-        return super().to_internal_value(data)

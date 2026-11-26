@@ -2,9 +2,11 @@ from rest_framework import generics, status, permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from zoco_api.uploads import ImageUploadSerializer
 from rest_framework.authtoken.models import Token
 from .models import User, UserProfile
-from .permissions import IsAdminRole
+from .permissions import IsAdminRole, IsAdminOrReadOnly
 from .serializers import (
     UserSerializer,
     AdminUserSerializer,
@@ -12,10 +14,13 @@ from .serializers import (
     RegisterSerializer,
     LoginSerializer,
 )
-from .utils import DEFAULT_USERNAMES, ensure_default_users
 
 
 class RegisterView(generics.CreateAPIView):
+    """
+    Registro público. Siempre crea una cuenta de COMPRADOR (ver RegisterSerializer).
+    Quien quiera vender usa después /auth/become-seller; los administradores no se registran.
+    """
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
@@ -34,13 +39,13 @@ class RegisterView(generics.CreateAPIView):
 
 
 class LoginView(APIView):
+    """
+    Inicio de sesión: devuelve el token y los datos del usuario (incluido su rol).
+    No crea cuentas: si el usuario no existe, responde 400.
+    """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
-        if username in DEFAULT_USERNAMES and not User.objects.filter(username=username).exists():
-            ensure_default_users()
-
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
@@ -54,6 +59,9 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
+    """
+    Cierra la sesión borrando el token del usuario.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -65,6 +73,10 @@ class LogoutView(APIView):
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
+    """
+    Datos de la cuenta del usuario que hace la petición (GET/PUT/PATCH en /auth/me).
+    El usuario no puede cambiar su propio rol aquí.
+    """
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -72,11 +84,39 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
 
+class AvatarView(APIView):
+    """Sube la foto de perfil del usuario autenticado (multipart, campo 'image')."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        uploaded = ImageUploadSerializer(data=request.data)
+        uploaded.is_valid(raise_exception=True)
+        user = request.user
+        if user.avatar:
+            user.avatar.delete(save=False)
+        user.avatar = uploaded.validated_data['image']
+        user.save()
+        return Response({
+            "user": UserSerializer(user, context={'request': request}).data,
+            "message": "Foto de perfil actualizada."
+        }, status=status.HTTP_200_OK)
+
+
 class BecomeSellerView(APIView):
+    """
+    Un comprador pide ser vendedor. Los administradores no pueden usarlo (recibirían 403).
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         user = request.user
+        if user.role == 'ADMIN' or user.is_staff:
+            return Response(
+                {"detail": "Los administradores no pueden cambiar a vendedor."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         user.role = 'SELLER'
         producer_name = (request.data.get('producerName') or request.data.get('first_name') or '').strip()
         if producer_name and not (user.first_name or '').strip():
@@ -89,6 +129,9 @@ class BecomeSellerView(APIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
+    """
+    Gestión de usuarios y roles. SOLO administradores.
+    """
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = AdminUserSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
@@ -118,7 +161,10 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class UserProfileView(APIView):
-    permission_classes = [permissions.AllowAny]
+    """
+    Perfil general de la comunidad (un solo registro). Lo puede leer cualquier usuario con sesión; solo un administrador lo modifica.
+    """
+    permission_classes = [IsAdminOrReadOnly]
 
     def get(self, request):
         profile, _ = UserProfile.objects.get_or_create(id=1)

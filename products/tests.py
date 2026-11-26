@@ -180,13 +180,14 @@ class ProductAPITests(TestCase):
             "producerName": "Panadería Tradicional",
             "isExpressDelivery": True,
             "stock": 15,
-            "imageUrl": "file:///data/user/0/com.example.zoco/cache/pan.jpg"
+            "imageUrl": "https://cdn.zoco.test/pan.jpg"
         }
         response = self.client.post('/api/v1/products', data=payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['stock'], 15)
         self.assertEqual(response.data['inStock'], True)
-        self.assertEqual(response.data['imageUrl'], "file:///data/user/0/com.example.zoco/cache/pan.jpg")
+        # Las URLs web se conservan; las rutas locales del teléfono se descartan (la foto se sube aparte)
+        self.assertEqual(response.data['imageUrl'], "https://cdn.zoco.test/pan.jpg")
 
     def test_product_stock_zero_sets_in_stock_false(self):
         self.client.force_authenticate(user=self.seller)

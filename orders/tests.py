@@ -52,6 +52,7 @@ class OrderAPITests(TestCase):
         )
 
     def test_create_order_with_items(self):
+        self.client.force_authenticate(user=self.user)
         payload = {
             "customerName": "Juan Carlos",
             "customerPhone": "4451112233",
@@ -62,9 +63,10 @@ class OrderAPITests(TestCase):
                 {
                     "productId": self.product.id,
                     "quantity": 2,
-                    "unitPrice": 150.0
+                    "unitPrice": 1.0  # el servidor ignora el precio del cliente
                 }
-            ]
+            ],
+            "totalAmount": 1.0
         }
         response = self.client.post('/api/v1/orders', data=payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -74,6 +76,7 @@ class OrderAPITests(TestCase):
         self.assertEqual(response.data['items'][0]['sellerUsername'], self.seller.username)
 
     def test_change_order_status(self):
+        self.client.force_authenticate(user=self.admin)
         order = Order.objects.create(
             customer_name="María",
             total_amount=150.00,
@@ -159,6 +162,7 @@ class OrderAPITests(TestCase):
         self.assertEqual(len(admin_res.data), 2)
 
     def test_create_order_deducts_stock_and_updates_in_stock(self):
+        self.client.force_authenticate(user=self.user)
         self.product.stock = 3
         self.product.save()
 
@@ -185,6 +189,7 @@ class OrderAPITests(TestCase):
         self.assertFalse(self.product.in_stock)
 
     def test_create_order_insufficient_stock_rejected(self):
+        self.client.force_authenticate(user=self.user)
         self.product.stock = 2
         self.product.save()
 
@@ -198,3 +203,42 @@ class OrderAPITests(TestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 2)
         self.assertEqual(Order.objects.count(), 0)
+
+    def test_orders_require_login(self):
+        self.assertEqual(self.client.get('/api/v1/orders').status_code, status.HTTP_401_UNAUTHORIZED)
+        res = self.client.post(
+            '/api/v1/orders', data={"items": [{"productId": self.product.id, "quantity": 1}]}, format='json'
+        )
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_new_order_always_starts_pending(self):
+        self.client.force_authenticate(user=self.user)
+        res = self.client.post(
+            '/api/v1/orders',
+            data={"status": "DELIVERED", "items": [{"productId": self.product.id, "quantity": 1}]},
+            format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data['status'], "PENDING")
+
+    def test_seller_changes_status_only_for_orders_with_own_products(self):
+        own = Order.objects.create(user=self.user, customer_name="A", total_amount=150)
+        OrderItem.objects.create(order=own, product=self.product, product_name="p", quantity=1, unit_price=150, subtotal=150)
+        foreign = Order.objects.create(user=self.user, customer_name="B", total_amount=80)
+        OrderItem.objects.create(order=foreign, product=self.other_product, product_name="q", quantity=1, unit_price=80, subtotal=80)
+
+        self.client.force_authenticate(user=self.seller)
+        ok = self.client.post(f'/api/v1/orders/{own.id}/status/', data={"status": "CONFIRMED"}, format='json')
+        self.assertEqual(ok.status_code, status.HTTP_200_OK)
+        # El pedido de otro vendedor ni siquiera es visible para este vendedor
+        no = self.client.post(f'/api/v1/orders/{foreign.id}/status/', data={"status": "CONFIRMED"}, format='json')
+        self.assertEqual(no.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_buyer_cannot_edit_or_delete_orders(self):
+        order = Order.objects.create(user=self.user, customer_name="A", total_amount=150)
+        self.client.force_authenticate(user=self.user)
+        self.assertEqual(
+            self.client.patch(f'/api/v1/orders/{order.id}', data={"totalAmount": 1}, format='json').status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(self.client.delete(f'/api/v1/orders/{order.id}').status_code, status.HTTP_403_FORBIDDEN)

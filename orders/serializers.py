@@ -3,9 +3,16 @@ from rest_framework import serializers
 from decimal import Decimal
 from .models import Order, OrderItem, OrderStatus
 from products.models import Product
+from zoco_api.serializers_mixins import SnakeCaseAliasMixin
 
 
-class OrderItemSerializer(serializers.ModelSerializer):
+class OrderItemSerializer(SnakeCaseAliasMixin, serializers.ModelSerializer):
+    snake_case_aliases = {
+        'product_id': 'productId',
+        'product_name': 'productName',
+        'unit_price': 'unitPrice',
+    }
+
     productId = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),
         source='product',
@@ -21,18 +28,17 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['id', 'productId', 'productName', 'quantity', 'unitPrice', 'subtotal', 'sellerUsername']
 
-    def to_internal_value(self, data):
-        data = data.copy() if hasattr(data, 'copy') else dict(data)
-        if 'product_id' in data and 'productId' not in data:
-            data['productId'] = data['product_id']
-        if 'product_name' in data and 'productName' not in data:
-            data['productName'] = data['product_name']
-        if 'unit_price' in data and 'unitPrice' not in data:
-            data['unitPrice'] = data['unit_price']
-        return super().to_internal_value(data)
 
+class OrderSerializer(SnakeCaseAliasMixin, serializers.ModelSerializer):
+    snake_case_aliases = {
+        'scheduled_time': 'scheduledTime',
+        'total_amount': 'totalAmount',
+        'customer_name': 'customerName',
+        'customer_phone': 'customerPhone',
+        'delivery_address': 'deliveryAddress',
+        'is_express': 'isExpress',
+    }
 
-class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, required=False)
     scheduledTime = serializers.CharField(source='scheduled_time', required=False, allow_blank=True, default="")
     totalAmount = serializers.FloatField(source='total_amount', required=False)
@@ -53,24 +59,10 @@ class OrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'userId', 'createdAt', 'updatedAt']
 
-    def to_internal_value(self, data):
-        data = data.copy() if hasattr(data, 'copy') else dict(data)
-        mappings = {
-            'scheduled_time': 'scheduledTime',
-            'total_amount': 'totalAmount',
-            'customer_name': 'customerName',
-            'customer_phone': 'customerPhone',
-            'delivery_address': 'deliveryAddress',
-            'is_express': 'isExpress',
-        }
-        for snake, camel in mappings.items():
-            if snake in data and camel not in data:
-                data[camel] = data[snake]
-        return super().to_internal_value(data)
-
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         request = self.context.get('request')
+        validated_data.pop('status', None)  # un pedido nuevo siempre inicia como pendiente
         if request and request.user.is_authenticated:
             validated_data['user'] = request.user
             if not validated_data.get('customer_name'):
@@ -117,12 +109,9 @@ class OrderSerializer(serializers.ModelSerializer):
                 if product is not None and product.id in locked_products:
                     product = locked_products[product.id]
                 quantity = item_data.get('quantity', 1)
-                unit_price = item_data.get('unit_price')
-
-                if unit_price is None and product:
+                # El precio lo define el servidor: nunca se confía en el unitPrice del cliente.
+                if product:
                     unit_price = product.price
-                elif unit_price is not None:
-                    unit_price = Decimal(str(unit_price))
                 else:
                     unit_price = Decimal('0.00')
 
@@ -150,8 +139,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 product.stock -= total_qty
                 product.save(update_fields=['stock', 'in_stock', 'updated_at'])
 
-            if not validated_data.get('total_amount') or order.total_amount == 0:
-                order.total_amount = calculated_total
-                order.save(update_fields=['total_amount'])
+            order.total_amount = calculated_total
+            order.save(update_fields=['total_amount'])
 
         return order

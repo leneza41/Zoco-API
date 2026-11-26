@@ -6,6 +6,7 @@ from .views import (
     LogoutView,
     ProfileView,
     BecomeSellerView,
+    AvatarView,
     UserViewSet,
     UserProfileView,
 )
@@ -26,6 +27,7 @@ urlpatterns = [
     re_path(r'^auth/logout/?$', LogoutView.as_view(), name='auth-logout'),
     re_path(r'^auth/profile/?$', ProfileView.as_view(), name='auth-profile'),
     re_path(r'^auth/me/?$', ProfileView.as_view(), name='auth-me'),
+    re_path(r'^auth/me/avatar/?$', AvatarView.as_view(), name='auth-avatar'),
     re_path(r'^auth/become-seller/?$', BecomeSellerView.as_view(), name='auth-become-seller'),
     re_path(r'^profile/?$', UserProfileView.as_view(), name='user-profile'),
     path('', include(router.urls)),

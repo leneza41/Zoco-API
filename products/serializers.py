@@ -1,8 +1,16 @@
 from rest_framework import serializers
+from zoco_api.serializers_mixins import SnakeCaseAliasMixin
 from .models import Product, ProductCategory
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductSerializer(SnakeCaseAliasMixin, serializers.ModelSerializer):
+    snake_case_aliases = {
+        'producer_name': 'producerName',
+        'is_express_delivery': 'isExpressDelivery',
+        'in_stock': 'inStock',
+        'image_url': 'imageUrl',
+    }
+
     # Coerce price to float for direct Moshi/Kotlin Double deserialization
     price = serializers.FloatField()
     producerName = serializers.CharField(source='producer_name', required=True)
@@ -37,25 +45,19 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        if not ret.get('imageUrl') and instance.image:
+        if instance.image:
             request = self.context.get('request')
             ret['imageUrl'] = request.build_absolute_uri(instance.image.url) if request else instance.image.url
-        elif ret.get('imageUrl') == "":
+        elif not ret.get('imageUrl'):
             ret['imageUrl'] = None
         return ret
 
-    def to_internal_value(self, data):
-        # Support both camelCase and snake_case inputs seamlessly
-        data = data.copy() if hasattr(data, 'copy') else dict(data)
-        if 'producer_name' in data and 'producerName' not in data:
-            data['producerName'] = data['producer_name']
-        if 'is_express_delivery' in data and 'isExpressDelivery' not in data:
-            data['isExpressDelivery'] = data['is_express_delivery']
-        if 'in_stock' in data and 'inStock' not in data:
-            data['inStock'] = data['in_stock']
-        if 'image_url' in data and 'imageUrl' not in data:
-            data['imageUrl'] = data['image_url']
-        return super().to_internal_value(data)
+    def validate_imageUrl(self, value):
+        # Solo se aceptan URLs web. Rutas locales del teléfono (content://, file://) no sirven a otros usuarios;
+        # la foto se sube con POST /products/{id}/image.
+        if value and not value.lower().startswith(('http://', 'https://')):
+            return None
+        return value
 
     def validate_stock(self, value):
         if value < 0:
