@@ -25,9 +25,9 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'role', 'phone', 'address', 'preferredLanguage',
-            'avatar', 'created_at', 'updated_at'
+            'avatar', 'is_active', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'role', 'is_active', 'created_at', 'updated_at']
 
     def to_internal_value(self, data):
         data = data.copy() if hasattr(data, 'copy') else dict(data)
@@ -36,9 +36,20 @@ class UserSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
 
+class AdminUserSerializer(UserSerializer):
+    class Meta(UserSerializer.Meta):
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def update(self, instance, validated_data):
+        if 'role' in validated_data:
+            instance.is_staff = validated_data['role'] == 'ADMIN'
+        return super().update(instance, validated_data)
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
     preferredLanguage = serializers.CharField(source='preferred_language', required=False, default='es')
+    role = serializers.CharField(required=False, default='BUYER')
 
     class Meta:
         model = User
@@ -47,6 +58,11 @@ class RegisterSerializer(serializers.ModelSerializer):
             'last_name', 'role', 'phone', 'address', 'preferredLanguage'
         ]
         read_only_fields = ['id']
+
+    def validate_role(self, value):
+        if value not in ('BUYER', 'SELLER'):
+            raise serializers.ValidationError("El registro público solo permite los roles 'BUYER' o 'SELLER'.")
+        return value
 
     def create(self, validated_data):
         password = validated_data.pop('password')

@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -18,16 +19,30 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # If user is authenticated and not staff, can see own orders or orders where user is seller
         user = self.request.user
-        if user.is_authenticated and not user.is_staff and user.role == 'BUYER':
-            return qs.filter(user=user)
+        if user.is_authenticated:
+            if user.role == 'ADMIN' or user.is_staff:
+                return qs
+            if user.role == 'SELLER':
+                return qs.filter(Q(user=user) | Q(items__product__seller=user)).distinct()
+            if user.role == 'BUYER':
+                return qs.filter(user=user)
         return qs
 
     @action(detail=True, methods=['post', 'patch'], url_path='status')
     def change_status(self, request, pk=None):
         order = self.get_object()
         new_status = request.data.get('status')
+        if (
+            request.user.is_authenticated
+            and request.user.role == 'BUYER'
+            and not request.user.is_staff
+            and new_status != OrderStatus.CANCELLED
+        ):
+            return Response(
+                {"detail": "Los compradores solo pueden cancelar sus pedidos."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if not new_status or new_status not in OrderStatus.values:
             return Response(
                 {"error": f"Estado inválido. Opciones válidas: {list(OrderStatus.values)}"},

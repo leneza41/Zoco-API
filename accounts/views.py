@@ -1,9 +1,18 @@
 from rest_framework import generics, status, permissions, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from .models import User, UserProfile
-from .serializers import UserSerializer, UserProfileSerializer, RegisterSerializer, LoginSerializer
+from .permissions import IsAdminRole
+from .serializers import (
+    UserSerializer,
+    AdminUserSerializer,
+    UserProfileSerializer,
+    RegisterSerializer,
+    LoginSerializer,
+)
+from .utils import DEFAULT_USERNAMES, ensure_default_users
 
 
 class RegisterView(generics.CreateAPIView):
@@ -28,6 +37,10 @@ class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        username = request.data.get('username')
+        if username in DEFAULT_USERNAMES and not User.objects.filter(username=username).exists():
+            ensure_default_users()
+
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
@@ -59,10 +72,49 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
+class BecomeSellerView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        user.role = 'SELLER'
+        producer_name = (request.data.get('producerName') or request.data.get('first_name') or '').strip()
+        if producer_name and not (user.first_name or '').strip():
+            user.first_name = producer_name
+        user.save()
+        return Response({
+            "user": UserSerializer(user, context={'request': request}).data,
+            "message": "Ahora eres vendedor en Zoco."
+        }, status=status.HTTP_200_OK)
+
+
+class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
-    serializer_class = UserSerializer
-    permission_classes = [permissions.AllowAny]
+    serializer_class = AdminUserSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+    http_method_names = ['get', 'patch', 'put', 'post', 'head', 'options']
+
+    @action(
+        detail=True,
+        methods=['post', 'patch'],
+        url_path='role',
+        permission_classes=[permissions.IsAuthenticated, IsAdminRole],
+    )
+    def change_role(self, request, pk=None):
+        user = self.get_object()
+        new_role = request.data.get('role')
+        if new_role not in ('BUYER', 'SELLER', 'ADMIN'):
+            return Response(
+                {"error": "Rol inválido. Opciones válidas: BUYER, SELLER, ADMIN."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user.role = new_role
+        user.is_staff = (new_role == 'ADMIN')
+        user.save(update_fields=['role', 'is_staff', 'updated_at'])
+        return Response(
+            UserSerializer(user, context={'request': request}).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class UserProfileView(APIView):

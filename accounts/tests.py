@@ -23,8 +23,19 @@ class AccountsAPITests(TestCase):
         self.assertEqual(response.data['user']['username'], "nuevo_usuario")
         self.assertEqual(response.data['user']['role'], "SELLER")
 
+    def test_register_admin_role_rejected(self):
+        payload = {
+            "username": "hack_admin",
+            "email": "hack@zoco.com",
+            "password": "segurapassword123",
+            "role": "ADMIN",
+        }
+        response = self.client.post('/api/v1/auth/register', data=payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('role', response.data)
+
     def test_login_user(self):
-        user = User.objects.create_user(
+        User.objects.create_user(
             username="usuario_login",
             password="password123",
             email="login@zoco.com"
@@ -37,6 +48,84 @@ class AccountsAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('token', response.data)
         self.assertEqual(response.data['user']['username'], "usuario_login")
+
+    def test_login_default_users_auto_created(self):
+        response = self.client.post(
+            '/api/v1/auth/login',
+            data={"username": "laura_compradora", "password": "zoco123"},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['user']['role'], "BUYER")
+        self.assertTrue(User.objects.filter(username='vendedor_juan', role='SELLER').exists())
+        self.assertTrue(User.objects.filter(username='admin', role='ADMIN', is_staff=True).exists())
+
+    def test_become_seller_upgrades_buyer_and_allows_creating_product(self):
+        buyer = User.objects.create_user(
+            username="buyer_upgrade",
+            password="password123",
+            role="BUYER",
+        )
+        self.client.force_authenticate(user=buyer)
+
+        res = self.client.post(
+            '/api/v1/auth/become-seller/',
+            data={"producerName": "Huerto Nuevo"},
+            format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['user']['role'], "SELLER")
+        buyer.refresh_from_db()
+        self.assertEqual(buyer.role, "SELLER")
+        self.assertEqual(buyer.first_name, "Huerto Nuevo")
+
+        product_res = self.client.post(
+            '/api/v1/products',
+            data={
+                "name": "Mermelada Casera",
+                "price": 65.0,
+                "producerName": "Huerto Nuevo",
+                "category": "BAKERY",
+            },
+            format='json',
+        )
+        self.assertEqual(product_res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(product_res.data['sellerId'], buyer.id)
+        self.assertEqual(product_res.data['sellerUsername'], buyer.username)
+
+    def test_admin_can_change_user_role_and_non_admin_forbidden(self):
+        admin = User.objects.create_user(
+            username="admin_test",
+            password="password123",
+            role="ADMIN",
+            is_staff=True,
+        )
+        target = User.objects.create_user(
+            username="target_user",
+            password="password123",
+            role="BUYER",
+        )
+
+        # Non-admin cannot access user role endpoint
+        self.client.force_authenticate(user=target)
+        forbidden_res = self.client.post(
+            f'/api/v1/users/{target.id}/role',
+            data={"role": "ADMIN"},
+            format='json',
+        )
+        self.assertEqual(forbidden_res.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Admin can change role
+        self.client.force_authenticate(user=admin)
+        ok_res = self.client.post(
+            f'/api/v1/users/{target.id}/role/',
+            data={"role": "SELLER"},
+            format='json',
+        )
+        self.assertEqual(ok_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(ok_res.data['role'], "SELLER")
+        target.refresh_from_db()
+        self.assertEqual(target.role, "SELLER")
 
     def test_get_default_user_profile(self):
         response = self.client.get('/api/v1/profile')

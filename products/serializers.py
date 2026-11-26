@@ -12,6 +12,8 @@ class ProductSerializer(serializers.ModelSerializer):
     category = serializers.CharField(required=False, default=ProductCategory.ALL)
     description = serializers.CharField(required=False, allow_blank=True, default="")
     imageUrl = serializers.CharField(source='image_url', required=False, allow_null=True, allow_blank=True)
+    sellerId = serializers.IntegerField(source='seller_id', read_only=True)
+    sellerUsername = serializers.CharField(source='seller.username', read_only=True, default=None)
 
     class Meta:
         model = Product
@@ -22,6 +24,8 @@ class ProductSerializer(serializers.ModelSerializer):
             'price',
             'category',
             'producerName',
+            'sellerId',
+            'sellerUsername',
             'isExpressDelivery',
             'inStock',
             'stock',
@@ -29,7 +33,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'sellerId', 'sellerUsername', 'created_at', 'updated_at']
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)

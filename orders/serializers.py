@@ -15,10 +15,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
     productName = serializers.CharField(source='product_name', required=False)
     unitPrice = serializers.FloatField(source='unit_price', required=False)
     subtotal = serializers.FloatField(required=False)
+    sellerUsername = serializers.CharField(source='product.seller.username', read_only=True, default=None)
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'productId', 'productName', 'quantity', 'unitPrice', 'subtotal']
+        fields = ['id', 'productId', 'productName', 'quantity', 'unitPrice', 'subtotal', 'sellerUsername']
 
     def to_internal_value(self, data):
         data = data.copy() if hasattr(data, 'copy') else dict(data)

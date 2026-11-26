@@ -1,16 +1,32 @@
 from django.urls import path, re_path, include
 from rest_framework.routers import DefaultRouter
-from .views import RegisterView, LoginView, LogoutView, ProfileView, UserViewSet, UserProfileView
+from .views import (
+    RegisterView,
+    LoginView,
+    LogoutView,
+    ProfileView,
+    BecomeSellerView,
+    UserViewSet,
+    UserProfileView,
+)
 
-router = DefaultRouter()
+
+class OptionalSlashRouter(DefaultRouter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.trailing_slash = r'/?'
+
+
+router = OptionalSlashRouter()
 router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
-    path('auth/register/', RegisterView.as_view(), name='auth-register'),
-    path('auth/login/', LoginView.as_view(), name='auth-login'),
-    path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
-    path('auth/profile/', ProfileView.as_view(), name='auth-profile'),
-    path('auth/me/', ProfileView.as_view(), name='auth-me'),
+    re_path(r'^auth/register/?$', RegisterView.as_view(), name='auth-register'),
+    re_path(r'^auth/login/?$', LoginView.as_view(), name='auth-login'),
+    re_path(r'^auth/logout/?$', LogoutView.as_view(), name='auth-logout'),
+    re_path(r'^auth/profile/?$', ProfileView.as_view(), name='auth-profile'),
+    re_path(r'^auth/me/?$', ProfileView.as_view(), name='auth-me'),
+    re_path(r'^auth/become-seller/?$', BecomeSellerView.as_view(), name='auth-become-seller'),
     re_path(r'^profile/?$', UserProfileView.as_view(), name='user-profile'),
     path('', include(router.urls)),
 ]

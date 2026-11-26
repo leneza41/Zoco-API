@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions, filters
 from django_filters.rest_framework import DjangoFilterBackend
+from accounts.permissions import IsSellerOrAdmin, IsProductOwnerOrAdmin
 from .models import Product
 from .serializers import ProductSerializer
 from .filters import ProductFilter
@@ -16,6 +17,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     # Disable pagination on products list so Android Retrofit receives List<ProductDto>
     pagination_class = None
 
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [permissions.AllowAny()]
+        if self.action == 'create':
+            return [permissions.IsAuthenticated(), IsSellerOrAdmin()]
+        return [permissions.IsAuthenticated(), IsProductOwnerOrAdmin()]
+
     def perform_create(self, serializer):
-        user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(seller=user)
+        serializer.save(seller=self.request.user)

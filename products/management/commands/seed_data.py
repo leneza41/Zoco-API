@@ -79,6 +79,24 @@ class Command(BaseCommand):
         buyer_user.save()
         Token.objects.get_or_create(user=buyer_user)
 
+        # 3b. Segundo vendedor (Artesana María)
+        maria_user, _ = User.objects.get_or_create(
+            username='artesana_maria',
+            defaults={
+                'email': 'maria@artesaniazoco.com',
+                'first_name': 'María',
+                'last_name': 'López',
+                'role': 'SELLER',
+                'phone': '4452223344',
+                'address': 'Calle Allende #18, Barrio Artesanal',
+                'preferred_language': 'es'
+            }
+        )
+        maria_user.set_password('zoco123')
+        maria_user.role = 'SELLER'
+        maria_user.save()
+        Token.objects.get_or_create(user=maria_user)
+
         # 4. Catálogo de Productos ONLINE (Sin emojis)
         sample_products = [
             {
@@ -174,8 +192,9 @@ class Command(BaseCommand):
         ]
 
         created_products = []
-        for pdata in sample_products:
-            prod = Product.objects.create(**pdata, seller=seller_user)
+        for idx, pdata in enumerate(sample_products):
+            owner = seller_user if idx < 6 else maria_user
+            prod = Product.objects.create(**pdata, seller=owner)
             created_products.append(prod)
 
         self.stdout.write(self.style.SUCCESS(f'{len(created_products)} productos EN LÍNEA creados en catálogo.'))
