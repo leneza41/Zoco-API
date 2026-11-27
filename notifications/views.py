@@ -27,6 +27,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
             return qs
         return qs.filter(user=user)
 
+    @action(detail=False, methods=['post'], url_path='mark-all-read', permission_classes=[permissions.IsAuthenticated])
+    def mark_all_read(self, request):
+        updated = self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'updated': str(updated)})
+
     @action(detail=True, methods=['post', 'patch'], url_path='read', permission_classes=[permissions.IsAuthenticated])
     def mark_read(self, request, pk=None):
         notification = self.get_object()

@@ -229,6 +229,7 @@ Ruta base recomendada: `/api/v1/` (o directamente `/api/`).
 | `GET` | `/api/v1/auth/me/` | Consultar la cuenta del usuario autenticado. |
 | `PUT` / `PATCH` | `/api/v1/auth/me/` | Actualizar teléfono, dirección, idioma (el rol no se puede cambiar aquí). |
 | `POST` | `/api/v1/auth/me/avatar/` | Subir foto de perfil (`multipart/form-data`, campo `image`, máx. 5 MB). |
+| `POST` | `/api/v1/auth/change-password/` | Cambiar la propia contraseña (`current_password`, `new_password`). Devuelve un token nuevo. |
 | `POST` | `/api/v1/auth/become-seller/` | Un comprador pasa a vendedor (`{"producerName": "..."}` opcional). Admin → 403. |
 | `GET` / `PATCH` | `/api/v1/users/`, `/api/v1/users/{id}/` | Solo admin: listar y editar usuarios. |
 | `POST` | `/api/v1/users/{id}/role/` | Solo admin: cambiar el rol de un usuario. |

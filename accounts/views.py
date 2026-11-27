@@ -58,6 +58,27 @@ class LoginView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+class ChangePasswordView(APIView):
+    """
+    El usuario cambia su propia contraseña. Pide la actual y la nueva (mínimo 6 caracteres).
+    Devuelve un token nuevo; el anterior deja de servir.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        current = request.data.get('current_password') or request.data.get('currentPassword') or ''
+        new = request.data.get('new_password') or request.data.get('newPassword') or ''
+        if not request.user.check_password(current):
+            return Response({"detail": "La contraseña actual no es correcta."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(new) < 6:
+            return Response({"detail": "La nueva contraseña debe tener al menos 6 caracteres."}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.set_password(new)
+        request.user.save(update_fields=['password'])
+        Token.objects.filter(user=request.user).delete()
+        token = Token.objects.create(user=request.user)
+        return Response({"token": token.key}, status=status.HTTP_200_OK)
+
+
 class LogoutView(APIView):
     """
     Cierra la sesión borrando el token del usuario.

@@ -193,3 +193,31 @@ class AccountsAPITests(TestCase):
         get_response = self.client.get('/api/v1/profile/')
         self.assertEqual(get_response.status_code, status.HTTP_200_OK)
         self.assertEqual(get_response.data['name'], "Roberto Gordillo")
+
+
+class ChangePasswordTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(username="cambio", password="vieja123", role="BUYER")
+
+    def test_requires_login(self):
+        response = self.client.post('/api/v1/auth/change-password/', {'current_password': 'x', 'new_password': 'nueva123'}, format='json')
+        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_wrong_current_password_is_rejected(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/v1/auth/change-password/', {'current_password': 'mal', 'new_password': 'nueva123'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_short_new_password_is_rejected(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/v1/auth/change-password/', {'current_password': 'vieja123', 'new_password': '123'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_password_changes_and_new_token_is_returned(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/v1/auth/change-password/', {'current_password': 'vieja123', 'new_password': 'nueva123'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['token'])
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('nueva123'))
